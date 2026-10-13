@@ -69,6 +69,16 @@ public class SubscriptionsOnlyModeTest {
         assertFalse(SubscriptionsOnlyMode.isCurrent(context, before));
         assertFalse(SubscriptionsOnlyMode.allowsChannel(context, A));
     }
+    @Test public void appRestoreCannotReplaceAdminConfiguration() throws Exception {
+        configure(context);
+        com.liskovsoft.smartyoutubetv2.common.misc.BackupAndRestoreManager manager =
+                new com.liskovsoft.smartyoutubetv2.common.misc.BackupAndRestoreManager(context);
+        java.lang.reflect.Method restore = manager.getClass().getDeclaredMethod("restoreData", String.class);
+        restore.setAccessible(true);
+        restore.invoke(manager, "untrusted-backup");
+        assertTrue(SubscriptionsOnlyMode.isEnabled(context));
+        assertEquals(2, SubscriptionsOnlyMode.snapshot(context).channels.size());
+    }
     @Test public void externalLockAlsoEnforcesMode() throws Exception {
         File external=context.getExternalFilesDir(null);
         assertNotNull(external);

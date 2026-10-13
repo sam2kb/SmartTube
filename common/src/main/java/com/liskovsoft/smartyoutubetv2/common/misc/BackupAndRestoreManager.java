@@ -1,5 +1,6 @@
 package com.liskovsoft.smartyoutubetv2.common.misc;
 
+import com.liskovsoft.smartyoutubetv2.common.restricted.SubscriptionsOnlyMode;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Build.VERSION;
@@ -202,6 +203,7 @@ public class BackupAndRestoreManager implements MotherActivity.OnPermissions {
     }
 
     private void restoreData(String backupName) {
+        if (SubscriptionsOnlyMode.isEnabled(mContext)) return;
         Log.d(TAG, "App just updated. Restoring data...");
 
         File currentBackup = getBackupCheck(backupName);

@@ -22,7 +22,8 @@ an external one. Either lock file enables the restriction.
 The subscriptions screen lists the approved channels. Search results retain each
 channel's own continuation, with up to three channel queries in flight. Global
 search suggestions and filters are unavailable in this mode. Subscription menus,
-account selection and unfiltered discovery are hidden or blocked.
+account selection and unfiltered discovery are hidden or blocked. App backup
+restore is blocked while the lock exists, so it cannot replace the approved list.
 
 For a debuggable build, use authorized ADB `run-as <package>` to write the private
 files. A release build can use its app-specific external directory where the
