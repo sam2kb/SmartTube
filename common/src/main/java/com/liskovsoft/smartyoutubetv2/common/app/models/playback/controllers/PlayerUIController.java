@@ -1,5 +1,6 @@
 package com.liskovsoft.smartyoutubetv2.common.app.models.playback.controllers;
 
+import com.liskovsoft.smartyoutubetv2.common.restricted.SubscriptionsOnlyMode;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.KeyEvent;
@@ -1007,6 +1008,8 @@ public class PlayerUIController extends BasePlayerController {
             MessageHelpers.showMessage(getContext(), R.string.wait_data_loading);
             return;
         }
+
+        if (SubscriptionsOnlyMode.isEnabled(getContext())) return;
 
         if (buttonState == PlayerUI.BUTTON_OFF) {
             callMediaItemObservable(mMediaItemService::subscribeObserve);

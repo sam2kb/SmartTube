@@ -1,5 +1,7 @@
 package com.liskovsoft.smartyoutubetv2.common.app.presenters;
 
+import com.liskovsoft.smartyoutubetv2.common.restricted.SubscribedChannelSearch;
+import com.liskovsoft.smartyoutubetv2.common.restricted.SubscriptionsOnlyMode;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import com.liskovsoft.mediaserviceinterfaces.ContentService;
@@ -44,6 +46,8 @@ public class SearchPresenter extends BasePresenter<SearchView> implements VideoG
     private int mFeatureOptions;
     private int mSortingOptions;
     private Video mCurrentVideo;
+    private final java.util.Map<VideoGroup, String> mScopedGroups = new java.util.IdentityHashMap<>();
+    private SubscriptionsOnlyMode.Snapshot mSearchScope;
 
     private SearchPresenter(Context context) {
         super(context);
@@ -69,7 +73,16 @@ public class SearchPresenter extends BasePresenter<SearchView> implements VideoG
             return;
         }
 
-        getView().setTagsProvider(new MediaServiceSearchTagProvider(getSearchData().isSearchHistoryDisabled()));
+        getView().setTagsProvider(new MediaServiceSearchTagProvider(getSearchData().isSearchHistoryDisabled()) {
+            @Override
+            public void search(String query, ResultsCallback callback) {
+                if (SubscriptionsOnlyMode.isEnabled(getContext())) {
+                    callback.onResults(null);
+                } else {
+                    super.search(query, results -> callback.onResults(SubscriptionsOnlyMode.isEnabled(getContext()) ? null : results));
+                }
+            }
+        });
 
         startSearchInt();
     }
@@ -178,10 +191,31 @@ public class SearchPresenter extends BasePresenter<SearchView> implements VideoG
 
         getView().clearSearch();
 
+        mScopedGroups.clear();
+        mSearchScope = SubscriptionsOnlyMode.snapshot(getContext());
+        if (mSearchScope.enabled) {
+            SubscriptionsOnlyMode.Snapshot scope = mSearchScope;
+            mLoadAction = SubscribedChannelSearch.search(contentService, scope, searchText).subscribe(result -> {
+                if (getView() == null || !SubscriptionsOnlyMode.isCurrent(getContext(), scope)) return;
+                VideoGroup group = VideoGroup.from(result.group);
+                group.setTitle(result.channelName);
+                group.setId(mScopedGroups.size() + 1);
+                mScopedGroups.put(group, result.channelId);
+                startPlayFirstVideo(group);
+                getView().updateSearch(group);
+                mBrowseProcessor.process(group);
+            }, error -> {
+                if (getView() != null) getView().showProgressBar(false);
+            }, () -> {
+                if (getView() != null) getView().showProgressBar(false);
+            });
+            return;
+        }
         mLoadAction = contentService.getSearchObserve(searchText,
                 mUploadDateOptions | mDurationOptions | mTypeOptions | mFeatureOptions | mSortingOptions)
                 .subscribe(
                         mediaGroups -> {
+                            if (getView() == null || SubscriptionsOnlyMode.isEnabled(getContext())) return;
                             Log.d(TAG, "Receiving results for '%s'", searchText);
                             for (MediaGroup mediaGroup : mediaGroups) {
                                 VideoGroup group = VideoGroup.from(mediaGroup);
@@ -217,13 +251,24 @@ public class SearchPresenter extends BasePresenter<SearchView> implements VideoG
 
         getView().showProgressBar(true);
 
+        if (SubscriptionsOnlyMode.isEnabled(getContext()) &&
+                (!mScopedGroups.containsKey(group) || !SubscriptionsOnlyMode.isCurrent(getContext(), mSearchScope) ||
+                 !SubscriptionsOnlyMode.allowsChannel(getContext(), mScopedGroups.get(group)))) {
+            getView().showProgressBar(false);
+            return;
+        }
         MediaGroup mediaGroup = group.getMediaGroup();
 
         ContentService contentService = getContentService();
 
-        mScrollAction = contentService.continueGroupObserve(mediaGroup)
+        io.reactivex.Observable<MediaGroup> continuation = SubscriptionsOnlyMode.isEnabled(getContext()) ?
+                SubscribedChannelSearch.continueSearch(contentService, mSearchScope, mScopedGroups.get(group), mediaGroup) :
+                contentService.continueGroupObserve(mediaGroup);
+        mScrollAction = continuation
                 .subscribe(
                         continueMediaGroup -> {
+                            if (getView() == null || SubscriptionsOnlyMode.isEnabled(getContext()) &&
+                                    !SubscriptionsOnlyMode.isCurrent(getContext(), mSearchScope)) return;
                             VideoGroup newGroup = VideoGroup.from(group, continueMediaGroup);
                             getView().updateSearch(newGroup);
                             mBrowseProcessor.process(newGroup);
@@ -299,6 +344,7 @@ public class SearchPresenter extends BasePresenter<SearchView> implements VideoG
     }
 
     public void onSearchSettingsClicked() {
+        if (SubscriptionsOnlyMode.isEnabled(getContext())) return; // Channel search has no global filters.
         if (getView() == null) {
             return;
         }
