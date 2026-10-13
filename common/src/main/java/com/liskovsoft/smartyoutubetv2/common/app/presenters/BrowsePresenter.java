@@ -1,6 +1,9 @@
 package com.liskovsoft.smartyoutubetv2.common.app.presenters;
 
 import com.liskovsoft.smartyoutubetv2.common.restricted.SubscriptionsOnlyMode;
+import com.liskovsoft.smartyoutubetv2.common.restricted.SubscribedChannelCards;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.schedulers.Schedulers;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.text.TextUtils;
@@ -694,12 +697,33 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     }
 
     private void updateLocalGrid(BrowseSection section, Callable<List<Video>> items) {
+        if (section.getId() == MediaGroup.TYPE_SUBSCRIPTIONS && SubscriptionsOnlyMode.isEnabled(getContext())) {
+            updateSubscribedChannels(section);
+            return;
+        }
         VideoGroup videoGroup = VideoGroup.from(Helpers.get(items), section);
         videoGroup.setAction(VideoGroup.ACTION_REPLACE);
         videoGroup.setId(videoGroup.hashCode());
         videoGroup.setTitle(section.getTitle());
         getView().updateSection(videoGroup);
         getView().showProgressBar(false);
+    }
+
+    private void updateSubscribedChannels(BrowseSection section) {
+        SubscriptionsOnlyMode.Snapshot scope = SubscriptionsOnlyMode.snapshot(getContext());
+        VideoGroup group = VideoGroup.from(SubscriptionsOnlyMode.channels(scope), section);
+        group.setAction(VideoGroup.ACTION_REPLACE);
+        group.setId(group.hashCode());
+        group.setTitle(section.getTitle());
+        getView().updateSection(group);
+        getView().showProgressBar(false);
+        mActions.add(SubscribedChannelCards.load(getContext().getApplicationContext(), scope, group.getVideos())
+                .subscribeOn(Schedulers.io()).observeOn(AndroidSchedulers.mainThread())
+                .subscribe(cards -> {
+                    if (getView() == null || mCurrentSection != section || !SubscriptionsOnlyMode.isCurrent(getContext(), scope)) return;
+                    group.setAction(VideoGroup.ACTION_SYNC);
+                    getView().updateSection(group);
+                }, error -> Log.e(TAG, "Channel artwork lookup failed: %s", error.getMessage())));
     }
 
     private void updateVideoRows(BrowseSection section, Observable<List<MediaGroup>> groups, boolean authCheck) {

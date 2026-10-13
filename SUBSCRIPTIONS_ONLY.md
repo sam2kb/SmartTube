@@ -10,12 +10,15 @@ app-specific external files directory, then create `.subscriptions_only.lock`
 in either location. The configuration has this shape:
 
 ```json
-{"channels": [{"id": "UCAAAAAAAAAAAAAAAAAAAAAA", "name": "Example channel"}]}
+{"channels": [{"id": "UCAAAAAAAAAAAAAAAAAAAAAA"}]}
 ```
 
 Replace the example ID with a canonical YouTube channel ID. An administrator can
 import the approved subscriptions from another client; no Google sign-in is
-needed for the local list. Missing, malformed or empty configuration permits no
+needed for the local list. Channel names and images are resolved by ID using the
+app's existing metadata lookup and cached for offline display. An optional `name`
+provides a fallback before metadata is available. Display metadata never changes
+which IDs are approved. Missing, malformed or empty configuration permits no
 channels while the lock exists. An internal configuration takes precedence over
 an external one. Either lock file enables the restriction.
 

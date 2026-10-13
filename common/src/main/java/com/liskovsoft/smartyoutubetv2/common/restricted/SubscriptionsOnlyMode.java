@@ -79,9 +79,10 @@ public final class SubscriptionsOnlyMode {
         Snapshot current = snapshot(context);
         return !current.enabled || requestedId != null && requestedId.equals(resolvedId) && current.allows(channelId);
     }
-    public static List<Video> channels(Context context) {
+    public static List<Video> channels(Context context) { return channels(snapshot(context)); }
+    public static List<Video> channels(Snapshot scope) {
         List<Video> result = new ArrayList<>();
-        for (Map.Entry<String, String> entry : snapshot(context).channels.entrySet()) {
+        for (Map.Entry<String, String> entry : scope.channels.entrySet()) {
             Video video = new Video();
             video.channelId = entry.getKey();
             video.title = entry.getValue();
