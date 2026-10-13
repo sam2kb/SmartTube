@@ -1,5 +1,9 @@
 package com.liskovsoft.smartyoutubetv2.common.app.presenters;
 
+import com.liskovsoft.smartyoutubetv2.common.restricted.SubscriptionsOnlyMode;
+import com.liskovsoft.smartyoutubetv2.common.restricted.SubscribedChannelCards;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.schedulers.Schedulers;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.text.TextUtils;
@@ -234,6 +238,12 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     private void initPinnedSections() {
         mSections.clear();
 
+        if (SubscriptionsOnlyMode.isEnabled(getContext())) {
+            BrowseSection subscriptions = mSectionsMapping.get(MediaGroup.TYPE_SUBSCRIPTIONS);
+            subscriptions.setEnabled(true);
+            mSections.add(subscriptions);
+            return;
+        }
         Collection<Video> pinnedItems = getSidebarService().getPinnedItems();
 
         for (Video item : pinnedItems) {
@@ -253,6 +263,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     }
 
     private void initPinnedCallbacks() {
+        if (SubscriptionsOnlyMode.isEnabled(getContext())) return;
         Collection<Video> pinnedItems = getSidebarService().getPinnedItems();
 
         for (Video item : pinnedItems) {
@@ -267,6 +278,10 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     }
 
     private void initLocalGridMapping() {
+        if (SubscriptionsOnlyMode.isEnabled(getContext())) {
+            mLocalGridMappings.put(MediaGroup.TYPE_SUBSCRIPTIONS, () -> SubscriptionsOnlyMode.channels(getContext()));
+            mGridMapping.remove(MediaGroup.TYPE_SUBSCRIPTIONS);
+        }
         mLocalGridMappings.put(MediaGroup.TYPE_PLAYBACK_QUEUE, () -> Playlist.instance().getAllReversed());
         mLocalGridMappings.put(MediaGroup.TYPE_BLOCKED_CHANNELS, this::getBlockedChannels);
     }
@@ -303,10 +318,10 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         // clean up (profile changed etc)
         getView().removeAllSections();
 
-        int bootSectionId = getSidebarService().getBootSectionId();
+        int bootSectionId = SubscriptionsOnlyMode.isEnabled(getContext()) ? MediaGroup.TYPE_SUBSCRIPTIONS : getSidebarService().getBootSectionId();
 
         // Empty Home on first run fix. Switch to something non-empty.
-        if (!getSignInService().isSigned() && VideoStateService.instance(getContext()).isEmpty()) {
+        if (!SubscriptionsOnlyMode.isEnabled(getContext()) && !getSignInService().isSigned() && VideoStateService.instance(getContext()).isEmpty()) {
             bootSectionId = MediaGroup.TYPE_MUSIC;
         }
 
@@ -682,12 +697,34 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     }
 
     private void updateLocalGrid(BrowseSection section, Callable<List<Video>> items) {
+        if (section.getId() == MediaGroup.TYPE_SUBSCRIPTIONS && SubscriptionsOnlyMode.isEnabled(getContext())) {
+            updateSubscribedChannels(section);
+            return;
+        }
         VideoGroup videoGroup = VideoGroup.from(Helpers.get(items), section);
         videoGroup.setAction(VideoGroup.ACTION_REPLACE);
         videoGroup.setId(videoGroup.hashCode());
         videoGroup.setTitle(section.getTitle());
         getView().updateSection(videoGroup);
         getView().showProgressBar(false);
+    }
+
+    private void updateSubscribedChannels(BrowseSection section) {
+        SubscriptionsOnlyMode.Snapshot scope = SubscriptionsOnlyMode.snapshot(getContext());
+        VideoGroup group = VideoGroup.from(SubscriptionsOnlyMode.channels(scope), section);
+        group.setAction(VideoGroup.ACTION_REPLACE);
+        group.setId(group.hashCode());
+        group.setTitle(section.getTitle());
+        getView().updateSection(group);
+        getView().showProgressBar(false);
+        mActions.add(SubscribedChannelCards.load(getContext().getApplicationContext(), scope)
+                .subscribeOn(Schedulers.io()).observeOn(AndroidSchedulers.mainThread())
+                .subscribe(update -> {
+                    if (getView() == null || mCurrentSection != section || !SubscriptionsOnlyMode.isCurrent(getContext(), scope)) return;
+                    update.apply(group.getVideos());
+                    group.setAction(VideoGroup.ACTION_SYNC);
+                    getView().updateSection(group);
+                }, error -> Log.e(TAG, "Channel artwork lookup failed: %s", error.getMessage())));
     }
 
     private void updateVideoRows(BrowseSection section, Observable<List<MediaGroup>> groups, boolean authCheck) {

@@ -756,4 +756,5 @@
         <item quantity="one">%s second</item>
         <item quantity="other">%s seconds</item>
     </plurals>
+    <string name="subscriptions_only_blocked">This channel is not in your subscriptions</string>
 </resources>

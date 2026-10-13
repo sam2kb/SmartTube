@@ -1,5 +1,6 @@
 package com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.menu;
 
+import com.liskovsoft.smartyoutubetv2.common.restricted.SubscriptionsOnlyMode;
 import android.content.Context;
 import com.liskovsoft.mediaserviceinterfaces.MediaItemService;
 import com.liskovsoft.mediaserviceinterfaces.ServiceManager;
@@ -149,6 +150,7 @@ public class VideoMenuPresenter extends BaseMenuPresenter {
     }
 
     public void showMenu(Video video) {
+        if (SubscriptionsOnlyMode.isEnabled(getContext())) return;
         if (video == null) {
             return;
         }

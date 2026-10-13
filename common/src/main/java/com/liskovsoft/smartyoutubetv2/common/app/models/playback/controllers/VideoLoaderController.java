@@ -1,5 +1,6 @@
 package com.liskovsoft.smartyoutubetv2.common.app.models.playback.controllers;
 
+import com.liskovsoft.smartyoutubetv2.common.restricted.SubscriptionsOnlyMode;
 import android.os.Build.VERSION;
 
 import com.liskovsoft.mediaserviceinterfaces.MediaItemService;
@@ -258,7 +259,10 @@ public class VideoLoaderController extends BasePlayerController {
         ServiceManager service = YouTubeServiceManager.instance();
         MediaItemService mediaItemManager = service.getMediaItemService();
         mFormatInfoAction = mediaItemManager.getFormatInfoObserve(video.videoId)
-                .subscribe(this::processFormatInfo,
+                .subscribe(formatInfo -> {
+                    // Disposed/late responses must not replace the current requested video.
+                    if (!SubscriptionsOnlyMode.isEnabled(getContext()) || getVideo() != null && video.videoId != null && video.videoId.equals(getVideo().videoId)) processFormatInfo(formatInfo);
+                },
                            error -> {
                                getPlayer().showProgressBar(false);
                                mErrorFixerController.runFormatErrorAction(error);
@@ -272,6 +276,14 @@ public class VideoLoaderController extends BasePlayerController {
             return;
         }
 
+        if (!SubscriptionsOnlyMode.allowsResolvedVideo(getContext(), getVideo().videoId,
+                formatInfo.getVideoId(), formatInfo.getChannelId())) {
+            player.setPlayWhenReady(false);
+            player.showProgressBar(false);
+            player.setTitle(getContext().getString(R.string.subscriptions_only_blocked));
+            player.showOverlay(true);
+            return;
+        }
         String bgImageUrl = null;
 
         getVideo().sync(formatInfo);
