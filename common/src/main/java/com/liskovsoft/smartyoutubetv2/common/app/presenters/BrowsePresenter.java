@@ -1,5 +1,6 @@
 package com.liskovsoft.smartyoutubetv2.common.app.presenters;
 
+import com.liskovsoft.smartyoutubetv2.common.restricted.SubscriptionsOnlyMode;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.text.TextUtils;
@@ -234,6 +235,12 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     private void initPinnedSections() {
         mSections.clear();
 
+        if (SubscriptionsOnlyMode.isEnabled(getContext())) {
+            BrowseSection subscriptions = mSectionsMapping.get(MediaGroup.TYPE_SUBSCRIPTIONS);
+            subscriptions.setEnabled(true);
+            mSections.add(subscriptions);
+            return;
+        }
         Collection<Video> pinnedItems = getSidebarService().getPinnedItems();
 
         for (Video item : pinnedItems) {
@@ -253,6 +260,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     }
 
     private void initPinnedCallbacks() {
+        if (SubscriptionsOnlyMode.isEnabled(getContext())) return;
         Collection<Video> pinnedItems = getSidebarService().getPinnedItems();
 
         for (Video item : pinnedItems) {
@@ -267,6 +275,10 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     }
 
     private void initLocalGridMapping() {
+        if (SubscriptionsOnlyMode.isEnabled(getContext())) {
+            mLocalGridMappings.put(MediaGroup.TYPE_SUBSCRIPTIONS, () -> SubscriptionsOnlyMode.channels(getContext()));
+            mGridMapping.remove(MediaGroup.TYPE_SUBSCRIPTIONS);
+        }
         mLocalGridMappings.put(MediaGroup.TYPE_PLAYBACK_QUEUE, () -> Playlist.instance().getAllReversed());
         mLocalGridMappings.put(MediaGroup.TYPE_BLOCKED_CHANNELS, this::getBlockedChannels);
     }
@@ -303,10 +315,10 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         // clean up (profile changed etc)
         getView().removeAllSections();
 
-        int bootSectionId = getSidebarService().getBootSectionId();
+        int bootSectionId = SubscriptionsOnlyMode.isEnabled(getContext()) ? MediaGroup.TYPE_SUBSCRIPTIONS : getSidebarService().getBootSectionId();
 
         // Empty Home on first run fix. Switch to something non-empty.
-        if (!getSignInService().isSigned() && VideoStateService.instance(getContext()).isEmpty()) {
+        if (!SubscriptionsOnlyMode.isEnabled(getContext()) && !getSignInService().isSigned() && VideoStateService.instance(getContext()).isEmpty()) {
             bootSectionId = MediaGroup.TYPE_MUSIC;
         }
 

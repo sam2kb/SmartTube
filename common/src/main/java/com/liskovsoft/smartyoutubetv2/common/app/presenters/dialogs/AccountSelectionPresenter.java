@@ -1,5 +1,6 @@
 package com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs;
 
+import com.liskovsoft.smartyoutubetv2.common.restricted.SubscriptionsOnlyMode;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.drawable.Drawable;
@@ -52,6 +53,7 @@ public class AccountSelectionPresenter extends BasePresenter<Void> {
     }
 
     public void show(boolean force) {
+        if (SubscriptionsOnlyMode.isEnabled(getContext())) return;
         if (!AccountsData.instance(getContext()).isSelectAccountOnBootEnabled() && !force) {
             // user don't want to see selection dialog
             return;

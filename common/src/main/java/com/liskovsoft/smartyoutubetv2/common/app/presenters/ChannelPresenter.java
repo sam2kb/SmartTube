@@ -1,5 +1,6 @@
 package com.liskovsoft.smartyoutubetv2.common.app.presenters;
 
+import com.liskovsoft.smartyoutubetv2.common.restricted.SubscriptionsOnlyMode;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import com.liskovsoft.mediaserviceinterfaces.data.MediaGroup;
@@ -147,6 +148,7 @@ public class ChannelPresenter extends BasePresenter<ChannelView> implements Vide
     }
 
     public void openChannel(String channelId) {
+        if (!SubscriptionsOnlyMode.allowsChannel(getContext(), channelId)) return;
         if (channelId == null) {
             return;
         }
@@ -389,6 +391,7 @@ public class ChannelPresenter extends BasePresenter<ChannelView> implements Vide
     }
 
     public boolean onSearchSubmit(String query) {
+        if (!SubscriptionsOnlyMode.allowsChannel(getContext(), getChannelId())) return true;
         Observable<MediaGroup> search = getContentService().getChannelSearchObserve(getChannelId(), query);
         Disposable result = search.subscribe(
                 items -> {

@@ -1,5 +1,6 @@
 package com.liskovsoft.smartyoutubetv2.common.app.models.playback.controllers;
 
+import com.liskovsoft.smartyoutubetv2.common.restricted.SubscriptionsOnlyMode;
 import android.text.TextUtils;
 import android.util.Pair;
 
@@ -371,6 +372,7 @@ public class SuggestionsController extends BasePlayerController {
         }
 
         getPlayer().clearSuggestions(); // clear previous videos
+        if (SubscriptionsOnlyMode.isEnabled(getContext())) return;
 
         appendChaptersIfNeeded(mediaItemMetadata);
 

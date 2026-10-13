@@ -1,5 +1,6 @@
 package com.liskovsoft.smartyoutubetv2.common.app.presenters;
 
+import com.liskovsoft.smartyoutubetv2.common.restricted.SubscriptionsOnlyMode;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.text.TextUtils;
@@ -133,6 +134,7 @@ public class ChannelUploadsPresenter extends BasePresenter<ChannelUploadsView> i
     }
 
     public void openChannel(Video item) {
+        if (!SubscriptionsOnlyMode.allowsChannel(getContext(), item != null ? item.channelId : null)) return;
         // Working with uploads or playlists
         if (item == null || (!item.hasNestedItems() && !item.hasPlaylist())) {
             return;
