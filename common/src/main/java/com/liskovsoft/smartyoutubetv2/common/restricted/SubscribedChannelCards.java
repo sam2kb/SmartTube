@@ -1,6 +1,7 @@
 package com.liskovsoft.smartyoutubetv2.common.restricted;
 
 import android.content.Context;
+import androidx.annotation.MainThread;
 import com.liskovsoft.googleapi.youtubedata3.YouTubeDataServiceInt;
 import com.liskovsoft.googleapi.youtubedata3.impl.ItemMetadata;
 import com.liskovsoft.sharedutils.helpers.FileHelpers;
@@ -10,26 +11,57 @@ import io.reactivex.functions.Function;
 import org.json.JSONObject;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /** Names and artwork are presentation data; the managed IDs remain authoritative. */
 public final class SubscribedChannelCards {
     static final String CACHE_FILE = "subscriptions-channel-cards.json";
     private SubscribedChannelCards() { }
 
-    public static Observable<List<Video>> load(Context context, SubscriptionsOnlyMode.Snapshot scope, List<Video> cards) {
-        return load(context, scope, cards, ids -> YouTubeDataServiceInt.getChannelMetadata(ids));
+    /** Each emission owns immutable display values, never the view's mutable cards. */
+    public static final class Update {
+        private final Map<String, Display> values;
+        private Update(SubscriptionsOnlyMode.Snapshot scope, JSONObject cached) {
+            Map<String, Display> result = new LinkedHashMap<>();
+            for (String id : scope.channels.keySet()) {
+                JSONObject display = cached.optJSONObject(id);
+                if (display != null) result.put(id, new Display(display.optString("name", ""), display.optString("image", "")));
+            }
+            values = Collections.unmodifiableMap(result);
+        }
+
+        @MainThread
+        public void apply(List<Video> cards) {
+            for (Video card : cards) {
+                Display display = values.get(card.channelId);
+                if (display == null) continue;
+                if (!display.name.isEmpty()) { card.title = display.name; card.author = display.name; }
+                if (!display.image.isEmpty()) { card.cardImageUrl = display.image; card.bgImageUrl = display.image; }
+            }
+        }
     }
 
-    static Observable<List<Video>> load(Context context, SubscriptionsOnlyMode.Snapshot scope, List<Video> cards,
-                                        Function<String[], List<ItemMetadata>> metadata) {
+    private static final class Display {
+        final String name;
+        final String image;
+        Display(String name, String image) { this.name = name; this.image = image; }
+    }
+
+    public static Observable<Update> load(Context context, SubscriptionsOnlyMode.Snapshot scope) {
+        return load(context, scope, ids -> YouTubeDataServiceInt.getChannelMetadata(ids));
+    }
+
+    static Observable<Update> load(Context context, SubscriptionsOnlyMode.Snapshot scope,
+                                  Function<String[], List<ItemMetadata>> metadata) {
         return Observable.defer(() -> {
             if (!scope.enabled || scope.channels.isEmpty()) return Observable.empty();
             JSONObject cached = readCache(context);
-            apply(scope, cards, cached);
-            return Observable.just(cards).concatWith(Observable.fromCallable(() -> {
+            return Observable.just(new Update(scope, cached)).concatWith(Observable.fromCallable(() -> {
                 List<ItemMetadata> result = metadata.apply(scope.channels.keySet().toArray(new String[0]));
-                if (result == null) return cards;
+                if (result == null) return new Update(scope, cached);
                 for (ItemMetadata item : result) {
                     if (item == null || !scope.channels.containsKey(item.getChannelId())) continue;
                     JSONObject display = cached.optJSONObject(item.getChannelId());
@@ -39,22 +71,9 @@ public final class SubscribedChannelCards {
                     cached.put(item.getChannelId(), display);
                 }
                 writeCache(context, cached);
-                apply(scope, cards, cached);
-                return cards;
+                return new Update(scope, cached);
             }).onErrorResumeNext(Observable.empty()));
         });
-    }
-
-    private static void apply(SubscriptionsOnlyMode.Snapshot scope, List<Video> cards, JSONObject cached) {
-        for (Video card : cards) {
-            if (!scope.channels.containsKey(card.channelId)) continue;
-            JSONObject display = cached.optJSONObject(card.channelId);
-            if (display == null) continue;
-            String name = display.optString("name", "");
-            String image = display.optString("image", "");
-            if (!name.isEmpty()) { card.title = name; card.author = name; }
-            if (!image.isEmpty()) { card.cardImageUrl = image; card.bgImageUrl = image; }
-        }
     }
 
     private static JSONObject readCache(Context context) {

@@ -20,7 +20,11 @@ app's existing metadata lookup and cached for offline display. An optional `name
 provides a fallback before metadata is available. Display metadata never changes
 which IDs are approved. Missing, malformed or empty configuration permits no
 channels while the lock exists. An internal configuration takes precedence over
-an external one. Either lock file enables the restriction.
+an external one. Either lock file enables the restriction. External activation
+is recorded privately and paired with a generated storage identity marker before
+the external configuration is used, so unavailable,
+unmounted or unreadable external storage cannot unlock the app. If only the
+external configuration exists, playback stays blocked until it becomes readable.
 
 The subscriptions screen lists the approved channels. Search results retain each
 channel's own continuation, with up to three channel queries in flight. Global
@@ -30,9 +34,17 @@ restore is blocked while the lock exists, so it cannot replace the approved list
 
 For a debuggable build, use authorized ADB `run-as <package>` to write the private
 files. A release build can use its app-specific external directory where the
-Android shell has access. Force-stop and reopen the app after changing the list
-or lock, so existing screens are rebuilt. Remove both lock files to restore
-ordinary mode. Approved IDs are also rechecked for new searches and playback.
+Android shell has access. For external provisioning, open and verify the
+approved channel list once while that storage is available and writable. An
+unobserved external lock cannot be distinguished from an ordinary installation
+when its storage is absent.
+Force-stop and reopen the app after changing the list or lock, so existing
+screens are rebuilt. Remove both lock files to restore ordinary mode. For external
+activation, do this while the original storage is mounted and readable. The private
+record is then cleared automatically. Keep the generated
+`.subscriptions_only.storage` marker on that storage; a replacement volume or
+missing identity marker does not count as removing the lock. Approved IDs are also
+rechecked for new searches and playback.
 
 This app restriction does not protect against an administrator, root access,
 uninstalling the app or clearing its data. Configure Android profile restrictions

@@ -717,10 +717,11 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         group.setTitle(section.getTitle());
         getView().updateSection(group);
         getView().showProgressBar(false);
-        mActions.add(SubscribedChannelCards.load(getContext().getApplicationContext(), scope, group.getVideos())
+        mActions.add(SubscribedChannelCards.load(getContext().getApplicationContext(), scope)
                 .subscribeOn(Schedulers.io()).observeOn(AndroidSchedulers.mainThread())
-                .subscribe(cards -> {
+                .subscribe(update -> {
                     if (getView() == null || mCurrentSection != section || !SubscriptionsOnlyMode.isCurrent(getContext(), scope)) return;
+                    update.apply(group.getVideos());
                     group.setAction(VideoGroup.ACTION_SYNC);
                     getView().updateSection(group);
                 }, error -> Log.e(TAG, "Channel artwork lookup failed: %s", error.getMessage())));
